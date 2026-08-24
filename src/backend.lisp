@@ -44,7 +44,7 @@
   (declare (ignore backend))
   (%ensure-http-backend)
   (let* ((req-headers (%sse-request-headers last-event-id headers))
-         (args (append (list method url
+         (args (append (list (or method :get) url
                              :want-stream t
                              :headers req-headers
                              :accept-encoding nil
