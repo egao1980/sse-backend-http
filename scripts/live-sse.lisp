@@ -51,14 +51,19 @@
 
 (defun %bind-http-client ()
   (or (ignore-errors
-        (asdf:load-system "cl-stack-http")
-        (cl-stack-http:ensure-http-backend :async)
-        (format t "~&; client backend: async~%")
+        (asdf:load-system "event-backend-libuv")
+        (asdf:load-system "http-backend-async")
+        (setf (symbol-value (find-symbol "*EVENT-BACKEND-MAKER*" :http-backend-async))
+              (lambda ()
+                (funcall (find-symbol "MAKE-LIBUV-BACKEND" :event-backend-libuv))))
+        (setf http-protocol:*http-backend*
+              (funcall (find-symbol "MAKE-ASYNC-BACKEND" :http-backend-async)))
+        (format t "~&; client backend: async × libuv~%")
         t)
       (progn
         (asdf:load-system "http-backend-dexador")
         (setf http-protocol:*http-backend*
-              (http-backend-dexador:make-dexador-backend))
+              (funcall (find-symbol "MAKE-DEXADOR-BACKEND" :http-backend-dexador)))
         (format t "~&; client backend: dexador~%")
         t)))
 
