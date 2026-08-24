@@ -11,7 +11,11 @@
   :in-order-to ((test-op (test-op "sse-backend-http/tests"))))
 
 (defsystem "sse-backend-http/tests"
-  :depends-on ("sse-backend-http" "rove")
+  :depends-on ("sse-backend-http"
+               "http-backend-dexador"
+               "http-server-backend-hunchentoot"
+               "rove"
+               "usocket")
   :pathname "tests"
   :serial t
   :components ((:file "package")

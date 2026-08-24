@@ -24,7 +24,9 @@
  (lambda ()
    (cl-repo:ensure-system-dependencies "sse-backend-http"
      :also-tests t
-     :default-source :oci)))
+     :default-source :oci
+     :sources '(("dissect" :ql)
+                ("babel" :ql)))))
 
 (format t "~&; ci: install phase done~%")
 (uiop:quit 0)
