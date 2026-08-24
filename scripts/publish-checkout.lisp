@@ -56,6 +56,25 @@
 (defun env (name &optional default)
   (or (uiop:getenv name) default))
 
+(defun hide-bootstrap-from-source-layer (source-dir)
+  "Move .cl-repository out of SOURCE-DIR after the packager is loaded.
+   setup-client writes that tree into the checkout; packing it (packager
+   0.16.0 does not exclude it) yields a ~10MB layer that fails extract
+   with parse-integer junk in string \"orm, manifes\"."
+  (let* ((root (uiop:ensure-directory-pathname source-dir))
+         (bootstrap (merge-pathnames ".cl-repository/" root)))
+    (when (uiop:directory-exists-p bootstrap)
+      (let* ((stash-parent (uiop:ensure-directory-pathname
+                            (or (uiop:getenv "RUNNER_TEMP")
+                                (namestring (uiop:temporary-directory)))))
+             (dest (merge-pathnames "cl-repository-bootstrap/" stash-parent)))
+        (when (uiop:directory-exists-p dest)
+          (uiop:delete-directory-tree dest :validate t :if-does-not-exist :ignore))
+        (ensure-directories-exist stash-parent)
+        (uiop:run-program (list "mv" (namestring bootstrap) (namestring dest))
+                          :output t :error-output t)
+        (format t "~&Hid .cl-repository from source layer -> ~a~%" dest)))))
+
 (let* ((system-name (env "PKG_SYSTEM" "sse-backend-http"))
        (version (let ((v (env "PKG_VERSION")))
                   (if (and v (plusp (length v)))
@@ -69,7 +88,10 @@
                             (error "GITHUB_TOKEN required"))))
        (reg (cl-oci-client/registry:make-registry
              (format nil "https://~a" registry-url) :auth auth))
-       (spec (cl-repository-packager/asdf-plugin:auto-package-spec system-name))
+       (spec (progn
+               (hide-bootstrap-from-source-layer
+                (asdf:system-source-directory system-name))
+               (cl-repository-packager/asdf-plugin:auto-package-spec system-name)))
        (result nil))
   (setf (cl-repository-packager/build-matrix:package-spec-provides spec)
         (list system-name))
