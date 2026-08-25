@@ -21,7 +21,7 @@ Live dogfood (Hunchentoot + cl-stack-http / dexador):
 sbcl --load scripts/live-sse.lisp
 ```
 
-CI: `setup-client` + `setup-roswell` + `scripts/ci-install.lisp` / `ci-test.lisp` (OCI only, no Quicklisp).
+CI: canned [`cl-repository`](https://github.com/egao1980/cl-repository) (`test-system.yml` / `setup-client` + `ci`). Deps from `ghcr.io/egao1980/cl-systems`.
 
 ## License
 
