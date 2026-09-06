@@ -13,7 +13,14 @@ Part of [cl-stack](https://github.com/egao1980/cl-stack) agent-wire ([brief](htt
 (let ((conn (sse-protocol:open-sse "http://127.0.0.1:8080/sse")))
   (unwind-protect (sse-protocol:collect-sse-events conn)
     (sse-protocol:close-sse conn)))
+
+;; Reconnect on EOF / read error (protocol stays framing-only):
+(sse-protocol:open-sse url :reconnect t :default-retry 3000 :reconnect-limit 3)
+;; or
+(sse-backend-http:open-sse-with-reconnect url :default-retry 50 :reconnect-limit 1)
 ```
+
+On read error or EOF the client sleeps `(or sse-reader-retry default-ms)` milliseconds and reopens with `Last-Event-ID`. `close-sse` stops further reconnects. `sse-protocol` only parses the `retry:` field.
 
 Live dogfood (Hunchentoot + cl-stack-http / dexador):
 

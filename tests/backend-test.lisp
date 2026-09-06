@@ -89,3 +89,69 @@
       (sleep 0.2)
       (ok (signals (sse-protocol:open-sse (format nil "http://127.0.0.1:~a/" port))
                    'sse-protocol:sse-error)))))
+
+(deftest live-reconnect-last-event-id
+  (%bind)
+  (let* ((port (%free-port))
+         (app (%sse-app (lambda (last)
+                          (if (equal last "1")
+                              (list (ev :id "2" :data "resume"))
+                              (list (ev :id "1" :data "first")))))))
+    (http-server-protocol:with-server (s app :host "127.0.0.1" :port port)
+      (sleep 0.2)
+      (let* ((url (format nil "http://127.0.0.1:~a/" port))
+             (conn (sse-protocol:open-sse url
+                                          :reconnect t
+                                          :default-retry 20
+                                          :reconnect-limit 1))
+             (evs (unwind-protect (sse-protocol:collect-sse-events conn)
+                    (sse-protocol:close-sse conn))))
+        (ok (typep conn 'sse-backend-http:reconnecting-sse-connection))
+        (ok (= 2 (length evs)))
+        (ok (equal "first" (sse-protocol:sse-event-data (first evs))))
+        (ok (equal "resume" (sse-protocol:sse-event-data (second evs))))
+        (ok (equal "2" (sse-protocol:sse-connection-last-event-id conn)))))))
+
+(deftest live-open-sse-with-reconnect
+  (%bind)
+  (let* ((port (%free-port))
+         (app (%sse-app (lambda (last)
+                          (if (equal last "1")
+                              (list (ev :id "2" :data "again"))
+                              (list (ev :retry 40 :id "1" :data "once")))))))
+    (http-server-protocol:with-server (s app :host "127.0.0.1" :port port)
+      (sleep 0.2)
+      (let* ((url (format nil "http://127.0.0.1:~a/" port))
+             (started (get-internal-real-time))
+             (conn (sse-backend-http:open-sse-with-reconnect
+                    url :default-retry 5000 :reconnect-limit 1))
+             (evs (unwind-protect (sse-protocol:collect-sse-events conn)
+                    (sse-protocol:close-sse conn)))
+             (elapsed (/ (float (- (get-internal-real-time) started))
+                         internal-time-units-per-second)))
+        (ok (= 2 (length evs)))
+        (ok (equal "once" (sse-protocol:sse-event-data (first evs))))
+        (ok (equal "again" (sse-protocol:sse-event-data (second evs))))
+        (ok (= 40 (sse-protocol:sse-reader-retry
+                   (sse-protocol:sse-connection-reader conn))))
+        (ok (>= elapsed 0.03))))))
+
+(deftest close-sse-stops-reconnect
+  (%bind)
+  (let* ((port (%free-port))
+         (hits (list 0))
+         (app (%sse-app (lambda (last)
+                          (declare (ignore last))
+                          (incf (first hits))
+                          (list (ev :id "1" :data "x"))))))
+    (http-server-protocol:with-server (s app :host "127.0.0.1" :port port)
+      (sleep 0.2)
+      (let ((conn (sse-protocol:open-sse
+                   (format nil "http://127.0.0.1:~a/" port)
+                   :reconnect t :default-retry 10 :reconnect-limit 5)))
+        (ok (equal "x" (sse-protocol:sse-event-data
+                        (sse-protocol:read-sse-event conn))))
+        (sse-protocol:close-sse conn)
+        (ok (null (sse-protocol:read-sse-event conn)))
+        (ok (= 1 (first hits)))))))
+
